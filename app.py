@@ -70,24 +70,25 @@ SCHEDULE_TIMEZONE = "Africa/Nairobi"
 TIMEZONE = "Africa/Nairobi"
 LOCAL_TIMEZONE = pytz.timezone(TIMEZONE)
 
-# Google Gemini API — multiple keys, round-robin
-_default_keys = [
-    'AIzaSyCihaMF7Q2WqcgVaf50s4fZ1shK6-eVV0M',
-    'AIzaSyBy1CVb4OXRIH_YSP1nxL1AAxAOOWu1TW4',
-    'AIzaSyB-FosQIBYp4FhUJBy3cuLzmHeKCJpPj7I',
-    'AIzaSyBNICDiCPIZBhgGCPZEDuGAWI7i8JmAhl4',
-    'AIzaSyAqRrL4Jmde9FLnVHPVLAQ5YXmwbuRvUOs',
-    'AIzaSyC1GqC9GorRAreSBefeh7fbgPTm4Lqnwc8',
-    'AIzaSyCUrXqmpJLVW1GaJgJlBrMeNulOHzZZkEs',
-]
+
+
+
+# Google Gemini API — Load from environment variables only
 _env_keys = os.environ.get('GEMINI_API_KEYS', '') or os.environ.get('GEMINI_API_KEY', '')
 if _env_keys:
     GEMINI_API_KEYS = [k.strip() for k in _env_keys.split(',') if k.strip()]
+    print(f"✅ Loaded {len(GEMINI_API_KEYS)} Gemini keys from environment")
 else:
-    GEMINI_API_KEYS = [k for k in _default_keys if k]
+    GEMINI_API_KEYS = []
+    print("⚠️  No GEMINI_API_KEYS environment variable set!")
+    print("   Please set GEMINI_API_KEYS in your .env file")
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODEL = "gemini-2.5-flash-lite"  # Higher rate limits
+GEMINI_MODEL = "gemini-3.5-flash"  # Use a valid model
+
+
+
+
 
 
 # Add rate limit tracking

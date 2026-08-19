@@ -133,95 +133,6 @@ sessions = {}  # in-memory session cache
 MASTER_SESSION_ID = None  # Global master session ID
 
 
-
-
-
-
-
-
-# ============================================================
-# PERSISTENT SESSION MANAGEMENT
-# ============================================================
-
-def ensure_session_active(session_id=None, handle=None):
-    """Ensure a session is active. If not in memory, try to restore from database."""
-    if session_id and session_id in sessions:
-        try:
-            client = sessions[session_id]['client']
-            client.me  # Verify session is still valid
-            return session_id, sessions[session_id]
-        except Exception:
-            del sessions[session_id]
-            session_id = None
-    
-    if session_id:
-        result = tool_restore_session(session_id)
-        if result.get('success'):
-            return result.get('session_id'), sessions.get(result.get('session_id'))
-    
-    if handle:
-        result = tool_restore_session(handle)
-        if result.get('success'):
-            return result.get('session_id'), sessions.get(result.get('session_id'))
-    
-    master_handle = load_master_handle()
-    if master_handle:
-        result = tool_restore_session(master_handle)
-        if result.get('success'):
-            return result.get('session_id'), sessions.get(result.get('session_id'))
-    
-    return None, None
-
-def refresh_sessions_from_db():
-    """Refresh all sessions from database."""
-    try:
-        conn = get_db_connection()
-        if not conn:
-            return 0
-        
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT session_id, session_string, handle, display_name 
-            FROM sessions 
-            WHERE expires_at > CURRENT_TIMESTAMP 
-            ORDER BY last_used_at DESC
-        """)
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        
-        restored_count = 0
-        for row in rows:
-            session_id, session_string, handle, display_name = row
-            try:
-                if session_id in sessions:
-                    continue
-                client = Client()
-                client.login(session_string=session_string)
-                sessions[session_id] = {
-                    'client': client,
-                    'handle': handle,
-                    'session_string': session_string,
-                    'display_name': display_name or handle,
-                }
-                restored_count += 1
-            except Exception as e:
-                print(f"⚠️ Could not restore session for @{handle}: {e}")
-        
-        return restored_count
-    except Exception as e:
-        print(f"⚠️ Session refresh error: {e}")
-        return 0
-
-
-
-
-
-
-
-
-
-
 def next_gemini_key():
     global _gemini_key_index
     if not GEMINI_API_KEYS:
@@ -696,24 +607,10 @@ def set_master_account(session_id_or_handle):
 
 
 def get_master_session():
-    """Get the master account session, auto-restoring if needed."""
+    """Get the master account session."""
     global MASTER_SESSION_ID
-    
     if MASTER_SESSION_ID and MASTER_SESSION_ID in sessions:
         return MASTER_SESSION_ID, sessions[MASTER_SESSION_ID]
-    
-    saved_master = load_master_handle()
-    if saved_master:
-        sid, session = ensure_session_active(handle=saved_master)
-        if sid:
-            MASTER_SESSION_ID = sid
-            return sid, session
-    
-    sid, session = ensure_session_active()
-    if sid:
-        MASTER_SESSION_ID = sid
-        return sid, session
-    
     return None, None
 
 
@@ -1456,21 +1353,10 @@ def tool_get_status(session_id=None):
     is_master = False
     master_handle = None
     
-    # Auto-refresh sessions if none exist
-    if not sessions:
-        refresh_sessions_from_db()
-    
-    if session_id and session_id not in sessions:
-        sid, session = ensure_session_active(session_id)
-        if sid:
-            session_id = sid
-            active_handle = session.get('handle')
-    
     if session_id and session_id in sessions:
         active_handle = sessions[session_id].get('handle')
     
     master_sid, master_session = get_master_session()
-    
     if master_sid and session_id == master_sid:
         is_master = True
     if master_session:
@@ -1489,6 +1375,7 @@ def tool_get_status(session_id=None):
     except Exception as e:
         print(f"status: {e}")
 
+    # Count only non-master sessions as posting accounts
     posting_count = 0
     for sid, s in sessions.items():
         if sid != master_sid:
@@ -1499,7 +1386,7 @@ def tool_get_status(session_id=None):
         "vault_count": vault_count,
         "scheduled_count": scheduled_count,
         "posted_count": posted_count,
-        "accounts_count": posting_count,
+        "accounts_count": posting_count,  # Only posting accounts
         "total_sessions": len(sessions),
         "active_handle": active_handle,
         "is_master": is_master,
@@ -2912,9 +2799,6 @@ def api_vault_add_image():
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    # Auto-refresh sessions on status check
-    if not sessions:
-        refresh_sessions_from_db()
     return jsonify(tool_get_status(None))
 
 
@@ -2938,57 +2822,6 @@ def api_auto_stop():
     return jsonify(tool_auto_stop())
 
 
-
-
-# ============================================================
-# SESSION AUTO-REFRESH MIDDLEWARE
-# ============================================================
-
-@app.before_request
-def before_request():
-    """Run before each request to ensure sessions are active."""
-    # Skip for static files and health checks
-    if request.path.startswith('/static/') or request.path == '/':
-        return
-    
-    # Refresh sessions periodically (every 5 minutes)
-    if not hasattr(app, '_last_session_refresh'):
-        app._last_session_refresh = datetime.now()
-    
-    if (datetime.now() - app._last_session_refresh).seconds > 300:
-        refresh_sessions_from_db()
-        app._last_session_refresh = datetime.now()
-
-
-
-
-
-@app.route('/api/sessions/refresh', methods=['POST'])
-def api_refresh_sessions():
-    """Force refresh sessions from database."""
-    count = refresh_sessions_from_db()
-    
-    saved_master = load_master_handle()
-    if saved_master:
-        sid, session = ensure_session_active(handle=saved_master)
-        if sid:
-            global MASTER_SESSION_ID
-            MASTER_SESSION_ID = sid
-    
-    return jsonify({
-        "success": True,
-        "restored": count,
-        "total_sessions": len(sessions),
-        "master_handle": load_master_handle(),
-        "message": f"Refreshed {count} sessions from database"
-    })
-
-
-
-
-
-
-
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
@@ -3006,6 +2839,9 @@ def index():
 
 
 
+
+# At the very bottom of app.py - REPLACE the existing if __name__ == '__main__' block
+
 if __name__ == '__main__':
     # Only run when not on Vercel
     if not os.environ.get('VERCEL'):
@@ -3016,12 +2852,46 @@ if __name__ == '__main__':
         else:
             print("⚠️  No GEMINI_API_KEYS — using keyword fallback only")
 
-        # ===== REFRESH SESSIONS FROM DATABASE =====
-        restored = refresh_sessions_from_db()
-        if restored > 0:
-            print(f"✅ Restored {restored} session(s)")
-        else:
-            print("ℹ️ No valid sessions to restore. Login required.")
+        # ===== AUTO-RESTORE ALL BLUESKY SESSIONS ON STARTUP =====
+        try:
+            conn = get_db_connection()
+            if conn:
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT session_id, session_string, handle, display_name 
+                    FROM sessions 
+                    WHERE expires_at > CURRENT_TIMESTAMP 
+                    ORDER BY last_used_at DESC
+                """)
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                
+                restored_count = 0
+                for row in rows:
+                    session_id, session_string, handle, display_name = row
+                    try:
+                        client = Client()
+                        client.login(session_string=session_string)
+                        sessions[session_id] = {
+                            'client': client,
+                            'handle': handle,
+                            'session_string': session_string,
+                            'display_name': display_name or handle,
+                        }
+                        restored_count += 1
+                        print(f"✅ Restored session for @{handle}")
+                    except Exception as e:
+                        print(f"⚠️ Could not restore session for @{handle}: {e}")
+                
+                if restored_count > 0:
+                    print(f"✅ Restored {restored_count} session(s)")
+                    print(f"   💡 Set master with: Set master @handle")
+                    print(f"   💡 List sessions with: List sessions")
+                else:
+                    print("ℹ️ No valid sessions to restore. Login required.")
+        except Exception as e:
+            print(f"⚠️ Session restore error: {e}")
 
         # ===== LOAD SAVED MASTER ACCOUNT =====
         saved_master = load_master_handle()

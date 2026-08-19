@@ -87,7 +87,7 @@ else:
     GEMINI_API_KEYS = [k for k in _default_keys if k]
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODEL = "gemini-2.5-flash"  # Higher rate limits
+GEMINI_MODEL = "gemini-2.5-flash-lite"  # Higher rate limits
 
 
 # Add rate limit tracking

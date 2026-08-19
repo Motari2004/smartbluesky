@@ -84,7 +84,7 @@ else:
     print("   Please set GEMINI_API_KEYS in your .env file")
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODEL = "gemini-3.5-flash"  # Use a valid model
+GEMINI_MODEL = "gemini-3.1-flash-lite"  # Use a valid model
 
 
 

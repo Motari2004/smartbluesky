@@ -68,6 +68,7 @@
             transition: opacity 0.3s ease;
         }
         .sidebar-overlay.active {
+            display: block;
             opacity: 1;
         }
         
@@ -490,9 +491,10 @@
             background: var(--bg);
             border: 1.5px solid var(--border);
             border-radius: 12px;
-            padding: 4px;
+            padding: 4px 4px 4px 8px;
             transition: all 0.3s ease;
             min-height: 44px;
+            width: 100%;
         }
         .composer-inner:focus-within {
             border-color: var(--accent);
@@ -500,7 +502,6 @@
         }
         .composer textarea {
             flex: 1;
-            width: 100%;
             background: transparent;
             border: none;
             color: var(--text);
@@ -511,8 +512,10 @@
             min-height: 20px;
             line-height: 1.5;
             outline: none;
-            padding: 8px 6px;
+            padding: 8px 4px;
             -webkit-appearance: none;
+            width: 100%;
+            min-width: 0;
         }
         .composer button.send {
             background: linear-gradient(135deg, #1185fe, #0a6fd9);
@@ -643,6 +646,9 @@
                 display: block;
             }
             
+            .chat-header {
+                padding-left: 60px;
+            }
             .chat-header .sub { display: none; }
             .chat-header h2 { font-size: 13px; }
             .header-auto { font-size: 10px; padding: 3px 8px; }
@@ -652,10 +658,28 @@
             .msg .bubble { font-size: 12px; padding: 8px 12px; }
             .msg .avatar { width: 26px; height: 26px; font-size: 11px; }
             
-            .composer { padding: 8px 12px 12px; }
-            .quick-btn { font-size: 9px; padding: 3px 8px; min-height: 26px; }
-            .composer textarea { font-size: 13px; padding: 6px 4px; }
-            .composer button.send { width: 36px; height: 36px; font-size: 14px; }
+            .composer { 
+                padding: 8px 12px 12px; 
+            }
+            .quick-btn { 
+                font-size: 9px; 
+                padding: 3px 8px; 
+                min-height: 26px; 
+            }
+            .composer textarea { 
+                font-size: 13px; 
+                padding: 6px 4px; 
+                min-height: 18px;
+            }
+            .composer button.send { 
+                width: 36px; 
+                height: 36px; 
+                font-size: 14px; 
+            }
+            .composer-inner {
+                min-height: 40px;
+                padding: 4px 4px 4px 8px;
+            }
             
             .empty-state i { font-size: 30px; }
             .empty-state h3 { font-size: 14px; }
@@ -672,18 +696,47 @@
         
         @media (max-width: 480px) {
             .sidebar { width: 280px; }
-            .sidebar-toggle { top: 8px; left: 8px; width: 40px; height: 40px; font-size: 16px; }
-            .chat-header { padding: 8px 12px; min-height: 48px; }
+            .sidebar-toggle { 
+                top: 8px; 
+                left: 8px; 
+                width: 36px; 
+                height: 36px; 
+                font-size: 14px; 
+            }
+            .chat-header { 
+                padding: 8px 12px; 
+                min-height: 44px;
+                padding-left: 52px;
+            }
             .chat-header h2 { font-size: 12px; }
             .messages { padding: 8px; gap: 8px; }
             .msg .bubble { font-size: 11px; padding: 6px 10px; }
             .msg .avatar { width: 22px; height: 22px; font-size: 10px; }
-            .composer { padding: 6px 8px 10px; }
-            .composer-inner { min-height: 38px; border-radius: 10px; }
-            .composer textarea { font-size: 12px; min-height: 18px; padding: 4px 4px; }
-            .composer button.send { width: 32px; height: 32px; font-size: 12px; }
+            .composer { 
+                padding: 6px 8px 10px; 
+            }
+            .composer-inner { 
+                min-height: 36px; 
+                border-radius: 10px;
+                padding: 3px 3px 3px 6px;
+            }
+            .composer textarea { 
+                font-size: 12px; 
+                min-height: 16px; 
+                padding: 4px 4px; 
+            }
+            .composer button.send { 
+                width: 32px; 
+                height: 32px; 
+                font-size: 12px; 
+                border-radius: 8px;
+            }
             .quick-row { gap: 4px; }
-            .quick-btn { font-size: 8px; padding: 2px 7px; min-height: 22px; }
+            .quick-btn { 
+                font-size: 8px; 
+                padding: 2px 7px; 
+                min-height: 22px; 
+            }
             .empty-state { padding: 20px 12px; }
             .empty-state i { font-size: 24px; }
             .empty-state h3 { font-size: 12px; }
@@ -789,9 +842,7 @@
                 <button class="quick-btn" onclick="sendQuick('List scheduled posts')">📅 Scheduled</button>
             </div>
             <div class="composer-inner">
-                <div class="input-wrapper" style="flex:1;min-width:0;">
-                    <textarea id="input" rows="1" placeholder="Message the AI… (Enter to send)"></textarea>
-                </div>
+                <textarea id="input" rows="1" placeholder="Message the AI… (Enter to send)"></textarea>
                 <button class="send" id="sendBtn" onclick="sendMessage()" disabled>
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -854,6 +905,11 @@ inputEl.addEventListener('keydown', e => {
         if (!sendBtn.disabled) sendMessage();
     }
 });
+
+// Focus input on load
+setTimeout(() => {
+    inputEl.focus();
+}, 100);
 
 function toast(message, type = 'info') {
     const existing = document.querySelector('.toast');

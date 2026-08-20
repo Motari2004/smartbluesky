@@ -23,7 +23,7 @@
             --radius: 14px;
             --radius-sm: 10px;
             --sidebar-width: 320px;
-            --sidebar-collapsed: 0px;
+            --composer-height: 100px;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -320,6 +320,8 @@
             flex-direction: column; 
             min-width: 0; 
             background: var(--bg);
+            height: 100vh;
+            overflow: hidden;
         }
         .chat-header {
             padding: 12px 16px;
@@ -361,10 +363,18 @@
             background: rgba(34,197,94,0.08);
         }
         
+        /* ===== MESSAGES ===== */
+        .messages-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 16px 16px 8px 16px;
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -374,6 +384,138 @@
         }
         .messages::-webkit-scrollbar { width: 4px; }
         .messages::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        
+        /* ===== COMPOSER - UPDATED FOR MOBILE ===== */
+        .composer-wrapper {
+            flex-shrink: 0;
+            padding: 8px 12px 12px 12px;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            position: relative;
+        }
+        
+        .quick-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .quick-btn {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.25s ease;
+            touch-action: manipulation;
+            white-space: nowrap;
+            min-height: 30px;
+        }
+        .quick-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(17,133,254,0.08);
+        }
+        .quick-btn:active { transform: scale(0.95); }
+        
+        .composer {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            padding: 6px 6px 6px 14px;
+            transition: all 0.3s ease;
+            min-height: 48px;
+            width: 100%;
+        }
+        .composer:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(17,133,254,0.08), inset 0 0 0 1px rgba(17,133,254,0.1);
+        }
+        .composer textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+            resize: none;
+            max-height: 100px;
+            min-height: 28px;
+            line-height: 1.5;
+            outline: none;
+            padding: 6px 0;
+            -webkit-appearance: none;
+            width: 100%;
+            min-width: 0;
+        }
+        .composer textarea::placeholder {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        .composer .send-btn {
+            background: linear-gradient(135deg, #1185fe, #0a6fd9);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            width: 40px;
+            height: 40px;
+            min-height: 40px;
+            min-width: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(17,133,254,0.25);
+            touch-action: manipulation;
+            font-size: 16px;
+        }
+        .composer .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 25px rgba(17,133,254,0.4);
+        }
+        .composer .send-btn:active:not(:disabled) { 
+            transform: scale(0.92); 
+        }
+        .composer .send-btn:disabled { 
+            opacity: 0.3; 
+            cursor: not-allowed; 
+            box-shadow: none; 
+            transform: none;
+        }
+        
+        .typing {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 16px 8px 16px;
+            color: var(--text-muted);
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .typing.active { display: flex; }
+        .typing .dots span {
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: bounce 1.2s infinite;
+        }
+        .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-5px); }
+        }
         
         .msg {
             max-width: 92%;
@@ -426,120 +568,6 @@
             font-weight: 600;
         }
         
-        .typing {
-            display: none;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 16px;
-            color: var(--text-muted);
-            font-size: 12px;
-        }
-        .typing.active { display: flex; }
-        .typing .dots span {
-            display: inline-block;
-            width: 5px;
-            height: 5px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            margin: 0 2px;
-            animation: bounce 1.2s infinite;
-        }
-        .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-5px); }
-        }
-        
-        .composer {
-            padding: 10px 16px 16px;
-            border-top: 1px solid var(--border);
-            background: var(--card);
-            flex-shrink: 0;
-        }
-        .quick-row {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 8px;
-        }
-        .quick-btn {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-            font-size: 10px;
-            padding: 4px 10px;
-            border-radius: 16px;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.25s ease;
-            touch-action: manipulation;
-            white-space: nowrap;
-            min-height: 30px;
-        }
-        .quick-btn:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-            background: rgba(17,133,254,0.08);
-        }
-        .quick-btn:active { transform: scale(0.95); }
-        
-        .composer-inner {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            background: var(--bg);
-            border: 1.5px solid var(--border);
-            border-radius: 12px;
-            padding: 4px 4px 4px 8px;
-            transition: all 0.3s ease;
-            min-height: 44px;
-            width: 100%;
-        }
-        .composer-inner:focus-within {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(17,133,254,0.06);
-        }
-        .composer textarea {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-            resize: none;
-            max-height: 120px;
-            min-height: 20px;
-            line-height: 1.5;
-            outline: none;
-            padding: 8px 4px;
-            -webkit-appearance: none;
-            width: 100%;
-            min-width: 0;
-        }
-        .composer button.send {
-            background: linear-gradient(135deg, #1185fe, #0a6fd9);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(17,133,254,0.2);
-            touch-action: manipulation;
-        }
-        .composer button.send:hover:not(:disabled) {
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 6px 25px rgba(17,133,254,0.35);
-        }
-        .composer button.send:active:not(:disabled) { transform: scale(0.92); }
-        .composer button.send:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
-        
         .empty-state {
             flex: 1;
             display: flex;
@@ -580,7 +608,7 @@
         
         .toast {
             position: fixed;
-            bottom: 80px;
+            bottom: 100px;
             left: 50%;
             transform: translateX(-50%);
             padding: 10px 20px;
@@ -623,7 +651,9 @@
         .pipe-route { color: var(--text-muted); font-size: 9px; word-break: break-all; }
         .pipe-empty { color: var(--text-muted); font-size: 10px; padding: 4px 0; }
         
-        /* ===== RESPONSIVE ===== */
+        /* ======================================== */
+        /* ===== RESPONSIVE - MOBILE FRIENDLY ===== */
+        /* ======================================== */
         @media (max-width: 768px) {
             .sidebar-toggle {
                 display: flex !important;
@@ -648,42 +678,86 @@
             
             .chat-header {
                 padding-left: 60px;
+                padding-top: 10px;
+                padding-bottom: 10px;
+                min-height: 50px;
             }
             .chat-header .sub { display: none; }
             .chat-header h2 { font-size: 13px; }
             .header-auto { font-size: 10px; padding: 3px 8px; }
             
-            .messages { padding: 12px; }
+            .messages { 
+                padding: 12px 12px 6px 12px; 
+                gap: 10px;
+            }
             .msg { max-width: 95%; }
-            .msg .bubble { font-size: 12px; padding: 8px 12px; }
+            .msg .bubble { 
+                font-size: 12px; 
+                padding: 8px 12px; 
+                border-radius: 12px;
+            }
             .msg .avatar { width: 26px; height: 26px; font-size: 11px; }
             
-            .composer { 
-                padding: 8px 12px 12px; 
-            }
-            .quick-btn { 
-                font-size: 9px; 
-                padding: 3px 8px; 
-                min-height: 26px; 
-            }
-            .composer textarea { 
-                font-size: 13px; 
-                padding: 6px 4px; 
-                min-height: 18px;
-            }
-            .composer button.send { 
-                width: 36px; 
-                height: 36px; 
-                font-size: 14px; 
-            }
-            .composer-inner {
-                min-height: 40px;
-                padding: 4px 4px 4px 8px;
+            /* Mobile composer - moved up, more curved */
+            .composer-wrapper {
+                padding: 6px 10px 10px 10px;
+                border-top: 1px solid var(--border);
             }
             
+            .quick-row {
+                gap: 4px;
+                margin-bottom: 6px;
+            }
+            .quick-btn {
+                font-size: 9px;
+                padding: 3px 8px;
+                min-height: 26px;
+                border-radius: 14px;
+            }
+            
+            .composer {
+                border-radius: 14px;
+                padding: 5px 5px 5px 12px;
+                min-height: 44px;
+                gap: 8px;
+                border-width: 1.5px;
+            }
+            .composer:focus-within {
+                box-shadow: 0 0 0 3px rgba(17,133,254,0.08);
+            }
+            .composer textarea {
+                font-size: 13px;
+                padding: 4px 0;
+                min-height: 24px;
+                max-height: 80px;
+            }
+            .composer textarea::placeholder {
+                font-size: 12px;
+            }
+            .composer .send-btn {
+                width: 36px;
+                height: 36px;
+                min-height: 36px;
+                min-width: 36px;
+                border-radius: 10px;
+                font-size: 14px;
+                box-shadow: 0 3px 12px rgba(17,133,254,0.2);
+            }
+            .composer .send-btn:active:not(:disabled) {
+                transform: scale(0.90);
+            }
+            
+            .empty-state { padding: 20px 12px; }
             .empty-state i { font-size: 30px; }
             .empty-state h3 { font-size: 14px; }
             .empty-state p { font-size: 12px; }
+            
+            .toast { 
+                font-size: 11px; 
+                padding: 8px 16px; 
+                bottom: 80px;
+                border-radius: 10px;
+            }
             
             .post-images .image-wrapper { max-width: 120px; }
             .post-images .image-wrapper img { max-height: 120px; }
@@ -692,6 +766,11 @@
             .status-card .handle { font-size: 12px; }
             .sidebar-actions button { font-size: 11px; padding: 6px 10px; min-height: 36px; }
             .auto-banner { font-size: 10px; padding: 10px; margin: 0 10px 8px; min-height: 60px; }
+            
+            .typing {
+                padding: 2px 12px 6px 12px;
+                font-size: 11px;
+            }
         }
         
         @media (max-width: 480px) {
@@ -702,46 +781,96 @@
                 width: 36px; 
                 height: 36px; 
                 font-size: 14px; 
+                border-radius: 10px;
             }
             .chat-header { 
-                padding: 8px 12px; 
+                padding: 8px 12px 8px 52px; 
                 min-height: 44px;
-                padding-left: 52px;
             }
             .chat-header h2 { font-size: 12px; }
-            .messages { padding: 8px; gap: 8px; }
-            .msg .bubble { font-size: 11px; padding: 6px 10px; }
-            .msg .avatar { width: 22px; height: 22px; font-size: 10px; }
-            .composer { 
-                padding: 6px 8px 10px; 
+            
+            .messages { 
+                padding: 8px 8px 4px 8px; 
+                gap: 8px;
             }
-            .composer-inner { 
-                min-height: 36px; 
+            .msg .bubble { 
+                font-size: 11px; 
+                padding: 6px 10px; 
                 border-radius: 10px;
-                padding: 3px 3px 3px 6px;
             }
-            .composer textarea { 
-                font-size: 12px; 
-                min-height: 16px; 
-                padding: 4px 4px; 
+            .msg .avatar { width: 22px; height: 22px; font-size: 10px; }
+            
+            /* Mobile composer - even more compact for small screens */
+            .composer-wrapper {
+                padding: 4px 8px 8px 8px;
             }
-            .composer button.send { 
-                width: 32px; 
-                height: 32px; 
-                font-size: 12px; 
+            
+            .quick-row {
+                gap: 3px;
+                margin-bottom: 4px;
+            }
+            .quick-btn {
+                font-size: 8px;
+                padding: 2px 7px;
+                min-height: 22px;
+                border-radius: 12px;
+            }
+            
+            .composer {
+                border-radius: 12px;
+                padding: 4px 4px 4px 10px;
+                min-height: 38px;
+                gap: 6px;
+                border-width: 1.5px;
+            }
+            .composer textarea {
+                font-size: 12px;
+                padding: 3px 0;
+                min-height: 20px;
+                max-height: 60px;
+            }
+            .composer textarea::placeholder {
+                font-size: 11px;
+            }
+            .composer .send-btn {
+                width: 32px;
+                height: 32px;
+                min-height: 32px;
+                min-width: 32px;
+                border-radius: 8px;
+                font-size: 12px;
+                box-shadow: 0 2px 10px rgba(17,133,254,0.18);
+            }
+            
+            .toast { 
+                font-size: 10px; 
+                padding: 6px 14px; 
+                bottom: 70px;
                 border-radius: 8px;
             }
-            .quick-row { gap: 4px; }
-            .quick-btn { 
-                font-size: 8px; 
-                padding: 2px 7px; 
-                min-height: 22px; 
-            }
-            .empty-state { padding: 20px 12px; }
+            
+            .empty-state { padding: 16px 10px; }
             .empty-state i { font-size: 24px; }
             .empty-state h3 { font-size: 12px; }
             .empty-state p { font-size: 11px; }
-            .toast { font-size: 11px; padding: 8px 16px; bottom: 70px; }
+            
+            .post-images .image-wrapper { max-width: 100px; }
+            .post-images .image-wrapper img { max-height: 100px; }
+            
+            .typing {
+                padding: 2px 10px 4px 10px;
+                font-size: 10px;
+            }
+        }
+        
+        /* Safe area for notched phones */
+        @supports (padding: max(0px)) {
+            .composer-wrapper {
+                padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+            }
+            .sidebar {
+                padding-bottom: env(safe-area-inset-bottom, 0);
+            }
         }
     </style>
 </head>
@@ -821,31 +950,35 @@
             </div>
         </div>
 
-        <div class="messages" id="messages">
-            <div class="empty-state" id="emptyState">
-                <i class="fas fa-comments"></i>
-                <h3>Start a conversation</h3>
-                <p>Ask me to login, fetch posts, fill the vault, or post to Bluesky right now.</p>
+        <!-- ===== MESSAGES + COMPOSER CONTAINER ===== -->
+        <div class="messages-container">
+            <div class="messages" id="messages">
+                <div class="empty-state" id="emptyState">
+                    <i class="fas fa-comments"></i>
+                    <h3>Start a conversation</h3>
+                    <p>Ask me to login, fetch posts, fill the vault, or post to Bluesky right now.</p>
+                </div>
             </div>
-        </div>
 
-        <div class="typing" id="typing">
-            <div class="dots"><span></span><span></span><span></span></div>
-            Thinking…
-        </div>
-
-        <div class="composer">
-            <div class="quick-row">
-                <button class="quick-btn" onclick="sendQuick('Status')">📊 Status</button>
-                <button class="quick-btn" onclick="sendQuick('List vault')">📦 Vault</button>
-                <button class="quick-btn" onclick="sendQuick('List sessions')">👤 Sessions</button>
-                <button class="quick-btn" onclick="sendQuick('List scheduled posts')">📅 Scheduled</button>
+            <div class="typing" id="typing">
+                <div class="dots"><span></span><span></span><span></span></div>
+                Thinking…
             </div>
-            <div class="composer-inner">
-                <textarea id="input" rows="1" placeholder="Message the AI… (Enter to send)"></textarea>
-                <button class="send" id="sendBtn" onclick="sendMessage()" disabled>
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+
+            <!-- ===== COMPOSER - MOVED UP WITH CURVED DESIGN ===== -->
+            <div class="composer-wrapper">
+                <div class="quick-row">
+                    <button class="quick-btn" onclick="sendQuick('Status')">📊 Status</button>
+                    <button class="quick-btn" onclick="sendQuick('List vault')">📦 Vault</button>
+                    <button class="quick-btn" onclick="sendQuick('List sessions')">👤 Sessions</button>
+                    <button class="quick-btn" onclick="sendQuick('List scheduled posts')">📅 Scheduled</button>
+                </div>
+                <div class="composer">
+                    <textarea id="input" rows="1" placeholder="Message the AI…"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </main>
@@ -896,7 +1029,7 @@ window.addEventListener('resize', () => {
 // ===== INPUT HANDLING =====
 inputEl.addEventListener('input', () => {
     inputEl.style.height = 'auto';
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
     sendBtn.disabled = !inputEl.value.trim();
 });
 inputEl.addEventListener('keydown', e => {
@@ -909,7 +1042,7 @@ inputEl.addEventListener('keydown', e => {
 // Focus input on load
 setTimeout(() => {
     inputEl.focus();
-}, 100);
+}, 300);
 
 function toast(message, type = 'info') {
     const existing = document.querySelector('.toast');
@@ -1274,8 +1407,8 @@ async function toggleAuto() {
 
 // Initial refresh
 refreshStatus();
-setInterval(refreshAutoStatus, 30000);  // Every 30 seconds
-setInterval(refreshStatus, 45000);  // Every 45 seconds
+setInterval(refreshAutoStatus, 30000);
+setInterval(refreshStatus, 45000);
 </script>
 </body>
 </html>

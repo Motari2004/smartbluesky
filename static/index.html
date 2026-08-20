@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Bluesky AI Vault → Bluesky</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
@@ -23,16 +23,21 @@
             --radius: 14px;
             --radius-sm: 10px;
             --sidebar-width: 320px;
-            --composer-height: 100px;
+            --sidebar-collapsed: 0px;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            height: 100dvh;
+        }
         body {
             font-family: 'Inter', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
-            height: 100vh;
             display: flex;
             overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* ===== SIDEBAR ===== */
@@ -208,8 +213,8 @@
             gap: 6px;
             flex-shrink: 0;
         }
-        .sidebar-actions button { 
-            width: 100%; 
+        .sidebar-actions button {
+            width: 100%;
             justify-content: center;
             font-size: 12px;
             padding: 8px 12px;
@@ -314,14 +319,14 @@
         }
         
         /* ===== MAIN ===== */
-        .main { 
-            flex: 1; 
-            display: flex; 
-            flex-direction: column; 
-            min-width: 0; 
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
             background: var(--bg);
-            height: 100vh;
-            overflow: hidden;
+            height: 100%;
+            height: 100dvh;
         }
         .chat-header {
             padding: 12px 16px;
@@ -333,13 +338,13 @@
             flex-shrink: 0;
             min-height: 56px;
         }
-        .chat-header h2 { 
-            font-size: 14px; 
+        .chat-header h2 {
+            font-size: 14px;
             font-weight: 600;
             white-space: nowrap;
         }
-        .chat-header .sub { 
-            font-size: 11px; 
+        .chat-header .sub {
+            font-size: 11px;
             color: var(--text-muted);
             display: none;
         }
@@ -363,159 +368,20 @@
             background: rgba(34,197,94,0.08);
         }
         
-        /* ===== MESSAGES ===== */
-        .messages-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            min-height: 0;
-        }
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 16px 16px 8px 16px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             gap: 12px;
             scrollbar-width: thin;
             scrollbar-color: #333 transparent;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
         .messages::-webkit-scrollbar { width: 4px; }
         .messages::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
-        
-        /* ===== COMPOSER - UPDATED FOR MOBILE ===== */
-        .composer-wrapper {
-            flex-shrink: 0;
-            padding: 8px 12px 12px 12px;
-            background: var(--card);
-            border-top: 1px solid var(--border);
-            position: relative;
-        }
-        
-        .quick-row {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 8px;
-        }
-        .quick-btn {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-            font-size: 10px;
-            padding: 4px 10px;
-            border-radius: 16px;
-            cursor: pointer;
-            font-family: inherit;
-            transition: all 0.25s ease;
-            touch-action: manipulation;
-            white-space: nowrap;
-            min-height: 30px;
-        }
-        .quick-btn:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-            background: rgba(17,133,254,0.08);
-        }
-        .quick-btn:active { transform: scale(0.95); }
-        
-        .composer {
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            background: var(--bg);
-            border: 1.5px solid var(--border);
-            border-radius: 16px;
-            padding: 6px 6px 6px 14px;
-            transition: all 0.3s ease;
-            min-height: 48px;
-            width: 100%;
-        }
-        .composer:focus-within {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(17,133,254,0.08), inset 0 0 0 1px rgba(17,133,254,0.1);
-        }
-        .composer textarea {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text);
-            font-family: inherit;
-            font-size: 14px;
-            resize: none;
-            max-height: 100px;
-            min-height: 28px;
-            line-height: 1.5;
-            outline: none;
-            padding: 6px 0;
-            -webkit-appearance: none;
-            width: 100%;
-            min-width: 0;
-        }
-        .composer textarea::placeholder {
-            color: var(--text-muted);
-            font-size: 13px;
-        }
-        .composer .send-btn {
-            background: linear-gradient(135deg, #1185fe, #0a6fd9);
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            width: 40px;
-            height: 40px;
-            min-height: 40px;
-            min-width: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            flex-shrink: 0;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(17,133,254,0.25);
-            touch-action: manipulation;
-            font-size: 16px;
-        }
-        .composer .send-btn:hover:not(:disabled) {
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 6px 25px rgba(17,133,254,0.4);
-        }
-        .composer .send-btn:active:not(:disabled) { 
-            transform: scale(0.92); 
-        }
-        .composer .send-btn:disabled { 
-            opacity: 0.3; 
-            cursor: not-allowed; 
-            box-shadow: none; 
-            transform: none;
-        }
-        
-        .typing {
-            display: none;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 16px 8px 16px;
-            color: var(--text-muted);
-            font-size: 12px;
-            flex-shrink: 0;
-        }
-        .typing.active { display: flex; }
-        .typing .dots span {
-            display: inline-block;
-            width: 5px;
-            height: 5px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            margin: 0 2px;
-            animation: bounce 1.2s infinite;
-        }
-        .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes bounce {
-            0%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-5px); }
-        }
         
         .msg {
             max-width: 92%;
@@ -568,6 +434,123 @@
             font-weight: 600;
         }
         
+        .typing {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+        .typing.active { display: flex; }
+        .typing .dots span {
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: bounce 1.2s infinite;
+        }
+        .typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-5px); }
+        }
+        
+        /* ===== COMPOSER (lifted + curved) ===== */
+        .composer {
+            padding: 10px 16px 16px;
+            padding-bottom: calc(16px + var(--safe-bottom));
+            border-top: 1px solid var(--border);
+            background: var(--card);
+            flex-shrink: 0;
+        }
+        .quick-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .quick-btn {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.25s ease;
+            touch-action: manipulation;
+            white-space: nowrap;
+            min-height: 30px;
+        }
+        .quick-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(17,133,254,0.08);
+        }
+        .quick-btn:active { transform: scale(0.95); }
+        
+        .composer-inner {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: var(--bg);
+            border: 1.5px solid var(--border);
+            border-radius: 24px;          /* more curved */
+            padding: 6px 6px 6px 14px;
+            transition: all 0.3s ease;
+            min-height: 48px;
+            width: 100%;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+        }
+        .composer-inner:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(17,133,254,0.08), 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .composer textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 15px;
+            resize: none;
+            max-height: 120px;
+            min-height: 22px;
+            line-height: 1.45;
+            outline: none;
+            padding: 8px 4px;
+            -webkit-appearance: none;
+            width: 100%;
+            min-width: 0;
+        }
+        .composer button.send {
+            background: linear-gradient(135deg, #1185fe, #0a6fd9);
+            color: #fff;
+            border: none;
+            border-radius: 50%;           /* fully round send button */
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(17,133,254,0.25);
+            touch-action: manipulation;
+        }
+        .composer button.send:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.04);
+            box-shadow: 0 6px 25px rgba(17,133,254,0.4);
+        }
+        .composer button.send:active:not(:disabled) { transform: scale(0.92); }
+        .composer button.send:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
+        
         .empty-state {
             flex: 1;
             display: flex;
@@ -608,11 +591,11 @@
         
         .toast {
             position: fixed;
-            bottom: 100px;
+            bottom: calc(100px + var(--safe-bottom));
             left: 50%;
             transform: translateX(-50%);
             padding: 10px 20px;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
             z-index: 9999;
@@ -651,9 +634,7 @@
         .pipe-route { color: var(--text-muted); font-size: 9px; word-break: break-all; }
         .pipe-empty { color: var(--text-muted); font-size: 10px; padding: 4px 0; }
         
-        /* ======================================== */
-        /* ===== RESPONSIVE - MOBILE FRIENDLY ===== */
-        /* ======================================== */
+        /* ===== RESPONSIVE ===== */
         @media (max-width: 768px) {
             .sidebar-toggle {
                 display: flex !important;
@@ -678,86 +659,47 @@
             
             .chat-header {
                 padding-left: 60px;
-                padding-top: 10px;
-                padding-bottom: 10px;
-                min-height: 50px;
             }
             .chat-header .sub { display: none; }
             .chat-header h2 { font-size: 13px; }
             .header-auto { font-size: 10px; padding: 3px 8px; }
             
-            .messages { 
-                padding: 12px 12px 6px 12px; 
-                gap: 10px;
-            }
+            .messages { padding: 12px 12px 8px; }
             .msg { max-width: 95%; }
-            .msg .bubble { 
-                font-size: 12px; 
-                padding: 8px 12px; 
-                border-radius: 12px;
-            }
-            .msg .avatar { width: 26px; height: 26px; font-size: 11px; }
+            .msg .bubble { font-size: 13px; padding: 9px 13px; }
+            .msg .avatar { width: 28px; height: 28px; font-size: 12px; }
             
-            /* Mobile composer - moved up, more curved */
-            .composer-wrapper {
-                padding: 6px 10px 10px 10px;
-                border-top: 1px solid var(--border);
-            }
-            
-            .quick-row {
-                gap: 4px;
-                margin-bottom: 6px;
+            /* Lifted + more curved composer on mobile */
+            .composer {
+                padding: 10px 12px 18px;
+                padding-bottom: calc(20px + var(--safe-bottom));
+                background: linear-gradient(180deg, transparent 0%, var(--card) 12%);
             }
             .quick-btn {
-                font-size: 9px;
-                padding: 3px 8px;
-                min-height: 26px;
-                border-radius: 14px;
+                font-size: 10px;
+                padding: 5px 11px;
+                min-height: 32px;
+                border-radius: 18px;
             }
-            
-            .composer {
-                border-radius: 14px;
-                padding: 5px 5px 5px 12px;
-                min-height: 44px;
-                gap: 8px;
-                border-width: 1.5px;
-            }
-            .composer:focus-within {
-                box-shadow: 0 0 0 3px rgba(17,133,254,0.08);
+            .composer-inner {
+                min-height: 50px;
+                border-radius: 26px;      /* nice curved look */
+                padding: 6px 6px 6px 16px;
             }
             .composer textarea {
-                font-size: 13px;
-                padding: 4px 0;
-                min-height: 24px;
-                max-height: 80px;
+                font-size: 16px;          /* prevents iOS zoom */
+                padding: 8px 4px;
+                min-height: 22px;
             }
-            .composer textarea::placeholder {
-                font-size: 12px;
-            }
-            .composer .send-btn {
-                width: 36px;
-                height: 36px;
-                min-height: 36px;
-                min-width: 36px;
-                border-radius: 10px;
-                font-size: 14px;
-                box-shadow: 0 3px 12px rgba(17,133,254,0.2);
-            }
-            .composer .send-btn:active:not(:disabled) {
-                transform: scale(0.90);
+            .composer button.send {
+                width: 42px;
+                height: 42px;
+                font-size: 15px;
             }
             
-            .empty-state { padding: 20px 12px; }
             .empty-state i { font-size: 30px; }
             .empty-state h3 { font-size: 14px; }
             .empty-state p { font-size: 12px; }
-            
-            .toast { 
-                font-size: 11px; 
-                padding: 8px 16px; 
-                bottom: 80px;
-                border-radius: 10px;
-            }
             
             .post-images .image-wrapper { max-width: 120px; }
             .post-images .image-wrapper img { max-height: 120px; }
@@ -767,109 +709,63 @@
             .sidebar-actions button { font-size: 11px; padding: 6px 10px; min-height: 36px; }
             .auto-banner { font-size: 10px; padding: 10px; margin: 0 10px 8px; min-height: 60px; }
             
-            .typing {
-                padding: 2px 12px 6px 12px;
-                font-size: 11px;
+            .toast {
+                bottom: calc(110px + var(--safe-bottom));
             }
         }
         
         @media (max-width: 480px) {
             .sidebar { width: 280px; }
-            .sidebar-toggle { 
-                top: 8px; 
-                left: 8px; 
-                width: 36px; 
-                height: 36px; 
-                font-size: 14px; 
-                border-radius: 10px;
+            .sidebar-toggle {
+                top: 8px;
+                left: 8px;
+                width: 38px;
+                height: 38px;
+                font-size: 15px;
             }
-            .chat-header { 
-                padding: 8px 12px 8px 52px; 
-                min-height: 44px;
+            .chat-header {
+                padding: 8px 12px;
+                min-height: 48px;
+                padding-left: 54px;
             }
-            .chat-header h2 { font-size: 12px; }
-            
-            .messages { 
-                padding: 8px 8px 4px 8px; 
-                gap: 8px;
-            }
-            .msg .bubble { 
-                font-size: 11px; 
-                padding: 6px 10px; 
-                border-radius: 10px;
-            }
-            .msg .avatar { width: 22px; height: 22px; font-size: 10px; }
-            
-            /* Mobile composer - even more compact for small screens */
-            .composer-wrapper {
-                padding: 4px 8px 8px 8px;
-            }
-            
-            .quick-row {
-                gap: 3px;
-                margin-bottom: 4px;
-            }
-            .quick-btn {
-                font-size: 8px;
-                padding: 2px 7px;
-                min-height: 22px;
-                border-radius: 12px;
-            }
+            .chat-header h2 { font-size: 13px; }
+            .messages { padding: 10px 10px 6px; gap: 10px; }
+            .msg .bubble { font-size: 13px; padding: 8px 12px; }
+            .msg .avatar { width: 26px; height: 26px; font-size: 11px; }
             
             .composer {
-                border-radius: 12px;
-                padding: 4px 4px 4px 10px;
-                min-height: 38px;
-                gap: 6px;
-                border-width: 1.5px;
+                padding: 8px 10px 16px;
+                padding-bottom: calc(18px + var(--safe-bottom));
+            }
+            .composer-inner {
+                min-height: 48px;
+                border-radius: 24px;
+                padding: 5px 5px 5px 14px;
             }
             .composer textarea {
-                font-size: 12px;
-                padding: 3px 0;
+                font-size: 16px;
                 min-height: 20px;
-                max-height: 60px;
+                padding: 7px 4px;
             }
-            .composer textarea::placeholder {
-                font-size: 11px;
+            .composer button.send {
+                width: 40px;
+                height: 40px;
+                font-size: 14px;
             }
-            .composer .send-btn {
-                width: 32px;
-                height: 32px;
-                min-height: 32px;
-                min-width: 32px;
-                border-radius: 8px;
+            .quick-row { gap: 5px; margin-bottom: 8px; }
+            .quick-btn {
+                font-size: 9px;
+                padding: 4px 9px;
+                min-height: 28px;
+            }
+            .empty-state { padding: 20px 12px; }
+            .empty-state i { font-size: 26px; }
+            .empty-state h3 { font-size: 13px; }
+            .empty-state p { font-size: 12px; }
+            .toast {
                 font-size: 12px;
-                box-shadow: 0 2px 10px rgba(17,133,254,0.18);
-            }
-            
-            .toast { 
-                font-size: 10px; 
-                padding: 6px 14px; 
-                bottom: 70px;
-                border-radius: 8px;
-            }
-            
-            .empty-state { padding: 16px 10px; }
-            .empty-state i { font-size: 24px; }
-            .empty-state h3 { font-size: 12px; }
-            .empty-state p { font-size: 11px; }
-            
-            .post-images .image-wrapper { max-width: 100px; }
-            .post-images .image-wrapper img { max-height: 100px; }
-            
-            .typing {
-                padding: 2px 10px 4px 10px;
-                font-size: 10px;
-            }
-        }
-        
-        /* Safe area for notched phones */
-        @supports (padding: max(0px)) {
-            .composer-wrapper {
-                padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
-            }
-            .sidebar {
-                padding-bottom: env(safe-area-inset-bottom, 0);
+                padding: 9px 16px;
+                bottom: calc(100px + var(--safe-bottom));
             }
         }
     </style>
@@ -882,14 +778,12 @@
     
     <!-- ===== SIDEBAR OVERLAY (mobile) ===== -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
     <aside class="sidebar" id="sidebar">
         <div class="logo">
             <i class="fas fa-cloud"></i>
             <h1>AI Vault</h1>
             <span class="badge">Bluesky</span>
         </div>
-
         <!-- ===== STATUS CARD ===== -->
         <div class="status-card" id="statusCard">
             <div class="handle" id="statusHandle">
@@ -906,7 +800,6 @@
                 <div style="color:var(--text-muted);font-size:11px;">No accounts connected</div>
             </div>
         </div>
-
         <!-- ===== AUTO BANNER ===== -->
         <div class="auto-banner" id="autoBanner">
             <div class="auto-title">
@@ -917,7 +810,6 @@
             <div class="auto-meta" id="autoMeta">Not configured yet</div>
             <div id="pipelineList"></div>
         </div>
-
         <!-- ===== SIDEBAR ACTIONS ===== -->
         <div class="sidebar-actions">
             <button class="btn btn-secondary" onclick="refreshStatus()">
@@ -937,7 +829,6 @@
             </button>
         </div>
     </aside>
-
     <main class="main">
         <div class="chat-header">
             <div>
@@ -949,40 +840,32 @@
                 <span id="headerAutoLabel">Auto off</span>
             </div>
         </div>
-
-        <!-- ===== MESSAGES + COMPOSER CONTAINER ===== -->
-        <div class="messages-container">
-            <div class="messages" id="messages">
-                <div class="empty-state" id="emptyState">
-                    <i class="fas fa-comments"></i>
-                    <h3>Start a conversation</h3>
-                    <p>Ask me to login, fetch posts, fill the vault, or post to Bluesky right now.</p>
-                </div>
+        <div class="messages" id="messages">
+            <div class="empty-state" id="emptyState">
+                <i class="fas fa-comments"></i>
+                <h3>Start a conversation</h3>
+                <p>Ask me to login, fetch posts, fill the vault, or post to Bluesky right now.</p>
             </div>
-
-            <div class="typing" id="typing">
-                <div class="dots"><span></span><span></span><span></span></div>
-                Thinking…
+        </div>
+        <div class="typing" id="typing">
+            <div class="dots"><span></span><span></span><span></span></div>
+            Thinking…
+        </div>
+        <div class="composer">
+            <div class="quick-row">
+                <button class="quick-btn" onclick="sendQuick('Status')">📊 Status</button>
+                <button class="quick-btn" onclick="sendQuick('List vault')">📦 Vault</button>
+                <button class="quick-btn" onclick="sendQuick('List sessions')">👤 Sessions</button>
+                <button class="quick-btn" onclick="sendQuick('List scheduled posts')">📅 Scheduled</button>
             </div>
-
-            <!-- ===== COMPOSER - MOVED UP WITH CURVED DESIGN ===== -->
-            <div class="composer-wrapper">
-                <div class="quick-row">
-                    <button class="quick-btn" onclick="sendQuick('Status')">📊 Status</button>
-                    <button class="quick-btn" onclick="sendQuick('List vault')">📦 Vault</button>
-                    <button class="quick-btn" onclick="sendQuick('List sessions')">👤 Sessions</button>
-                    <button class="quick-btn" onclick="sendQuick('List scheduled posts')">📅 Scheduled</button>
-                </div>
-                <div class="composer">
-                    <textarea id="input" rows="1" placeholder="Message the AI…"></textarea>
-                    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
+            <div class="composer-inner">
+                <textarea id="input" rows="1" placeholder="Message the AI… (Enter to send)"></textarea>
+                <button class="send" id="sendBtn" onclick="sendMessage()" disabled>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
             </div>
         </div>
     </main>
-
 <script>
 const API = window.location.origin;
 let history = [];
@@ -995,41 +878,35 @@ const inputEl = $('input');
 const sendBtn = $('sendBtn');
 const typingEl = $('typing');
 const emptyState = $('emptyState');
-
 // ===== SIDEBAR TOGGLE =====
 const sidebar = $('sidebar');
 const overlay = $('sidebarOverlay');
 const toggleBtn = $('sidebarToggle');
-
 function toggleSidebar() {
     sidebar.classList.toggle('open');
     overlay.classList.toggle('active');
-    toggleBtn.innerHTML = sidebar.classList.contains('open') 
-        ? '<i class="fas fa-times"></i>' 
+    toggleBtn.innerHTML = sidebar.classList.contains('open')
+        ? '<i class="fas fa-times"></i>'
         : '<i class="fas fa-bars"></i>';
 }
-
 toggleBtn.addEventListener('click', toggleSidebar);
 overlay.addEventListener('click', toggleSidebar);
-
 // Close sidebar on escape key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sidebar.classList.contains('open')) {
         toggleSidebar();
     }
 });
-
 // Close sidebar on window resize to desktop
 window.addEventListener('resize', () => {
     if (window.innerWidth > 768 && sidebar.classList.contains('open')) {
         toggleSidebar();
     }
 });
-
 // ===== INPUT HANDLING =====
 inputEl.addEventListener('input', () => {
     inputEl.style.height = 'auto';
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 100) + 'px';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
     sendBtn.disabled = !inputEl.value.trim();
 });
 inputEl.addEventListener('keydown', e => {
@@ -1038,12 +915,10 @@ inputEl.addEventListener('keydown', e => {
         if (!sendBtn.disabled) sendMessage();
     }
 });
-
 // Focus input on load
 setTimeout(() => {
     inputEl.focus();
-}, 300);
-
+}, 100);
 function toast(message, type = 'info') {
     const existing = document.querySelector('.toast');
     if (existing) existing.remove();
@@ -1053,13 +928,11 @@ function toast(message, type = 'info') {
     document.body.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
 }
-
 function escapeHtml(text) {
     const d = document.createElement('div');
     d.textContent = text;
     return d.innerHTML;
 }
-
 function addMessage(role, content, toolNames = [], images = []) {
     if (emptyState) emptyState.style.display = 'none';
     const div = document.createElement('div');
@@ -1094,7 +967,6 @@ function addMessage(role, content, toolNames = [], images = []) {
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
-
 async function sendMessage() {
     const text = inputEl.value.trim();
     if (!text) return;
@@ -1166,20 +1038,17 @@ async function sendMessage() {
         addMessage('assistant', 'Network error: ' + e.message);
     }
 }
-
 function sendQuick(text) {
     inputEl.value = text;
     sendBtn.disabled = false;
     sendMessage();
 }
-
 function clearChat() {
     history = [];
     messagesEl.innerHTML = '';
     emptyState.style.display = 'flex';
     messagesEl.appendChild(emptyState);
 }
-
 async function logoutAll() {
     if (!confirm('Logout all Bluesky sessions?')) return;
     try {
@@ -1200,7 +1069,6 @@ async function logoutAll() {
         toast('Failed to logout: ' + e.message, 'error');
     }
 }
-
 // ===== REFRESH STATUS =====
 async function refreshStatus() {
     let masterHandle = null;
@@ -1260,7 +1128,6 @@ async function refreshStatus() {
     
     refreshAutoStatus();
 }
-
 // ===== RENDER SESSIONS LIST =====
 function renderSessions(sessions, masterHandle) {
     const container = $('sessionList');
@@ -1321,7 +1188,6 @@ function renderSessions(sessions, masterHandle) {
     
     container.innerHTML = html;
 }
-
 // ===== AUTO STATUS =====
 async function refreshAutoStatus() {
     try {
@@ -1393,7 +1259,6 @@ async function refreshAutoStatus() {
         window._autoRunning = on;
     } catch (e) { console.warn('auto status refresh failed', e); }
 }
-
 async function toggleAuto() {
     const btn = $('autoToggleBtn');
     if (btn) btn.disabled = true;
@@ -1404,11 +1269,10 @@ async function toggleAuto() {
     } catch (e) { console.warn('toggle auto failed', e); }
     finally { if (btn) btn.disabled = false; }
 }
-
 // Initial refresh
 refreshStatus();
-setInterval(refreshAutoStatus, 30000);
-setInterval(refreshStatus, 45000);
+setInterval(refreshAutoStatus, 30000);  // Every 30 seconds
+setInterval(refreshStatus, 45000);  // Every 45 seconds
 </script>
 </body>
 </html>

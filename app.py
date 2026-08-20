@@ -57,6 +57,9 @@ load_dotenv()
 app = Flask(__name__, static_folder='static')
 CORS(app)
 
+
+
+
 # ============================================================
 # CONFIG
 # ============================================================
@@ -70,8 +73,9 @@ SCHEDULE_TIMEZONE = "Africa/Nairobi"
 TIMEZONE = "Africa/Nairobi"
 LOCAL_TIMEZONE = pytz.timezone(TIMEZONE)
 
-
-
+# ============================================================
+# GEMINI CONFIG - Models with fallback
+# ============================================================
 
 # Google Gemini API — Load from environment variables only
 _env_keys = os.environ.get('GEMINI_API_KEYS', '') or os.environ.get('GEMINI_API_KEY', '')
@@ -81,28 +85,38 @@ if _env_keys:
 else:
     GEMINI_API_KEYS = []
     print("⚠️  No GEMINI_API_KEYS environment variable set!")
-    print("   Please set GEMINI_API_KEYS in your .env file")
 
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-GEMINI_MODEL = "gemini-3.1-flash-lite"  # Use a valid model
+# Models in order of preference (highest quality first)
+GEMINI_MODELS = [
+    "gemini-3.7-flash",        # Best, newest
+    "gemini-3.6-flash",        # Fallback 1
+    "gemini-3.5-flash-lite",   # Fallback 2
+    "gemini-2.5-flash-lite",   # Fallback 3
+]
 
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 
+# ============================================================
+# GEMINI STATE VARIABLES
+# ============================================================
 
-
-
-
-# Add rate limit tracking
+_gemini_model_index = 0
 _gemini_key_index = 0
-_gemini_key_failures = {}  # Track failures per key
-_gemini_key_cooldown = {}  # Track cooldown per key
+_gemini_key_cooldown = {}
+_gemini_model_cooldown = {}
+
+# ============================================================
+# GEMINI HELPER FUNCTIONS
+# ============================================================
 
 def next_gemini_key():
+    """Get next available Gemini API key (skip cooldown keys)"""
     global _gemini_key_index
     if not GEMINI_API_KEYS:
         return None
     
     # Try to find a working key
-    for _ in range(len(GEMINI_API_KEYS) * 2):  # Try each key twice
+    for _ in range(len(GEMINI_API_KEYS) * 2):
         key_index = _gemini_key_index % len(GEMINI_API_KEYS)
         key = GEMINI_API_KEYS[key_index]
         
@@ -116,14 +130,32 @@ def next_gemini_key():
         _gemini_key_index += 1
         return key
     
-    # If all keys are on cooldown, wait and use the first one
-    print("⚠️ All keys on cooldown, using first key")
-    return GEMINI_API_KEYS[0]
+    # All keys on cooldown
+    print("⚠️ All API keys on cooldown")
+    return GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 
-def handle_rate_limit(key):
-    """Handle rate limit by putting key on cooldown"""
-    _gemini_key_cooldown[key] = datetime.now() + timedelta(seconds=30)
-    print(f"⏳ Key {key[:12]}... on cooldown for 30 seconds")
+def next_gemini_model():
+    """Get next model in round-robin fashion"""
+    global _gemini_model_index
+    if not GEMINI_MODELS:
+        return "gemini-2.5-flash-lite"
+    
+    model = GEMINI_MODELS[_gemini_model_index % len(GEMINI_MODELS)]
+    _gemini_model_index += 1
+    return model
+
+def handle_model_rate_limit(model):
+    """Put a model on cooldown if it's rate-limited"""
+    _gemini_model_cooldown[model] = datetime.now() + timedelta(seconds=60)
+    print(f"⏳ Model {model} on cooldown for 60 seconds")
+    
+    
+    
+    
+    
+    
+    
+    
     
     
     
@@ -1947,19 +1979,36 @@ def tool_auto_remove(name):
 # GEMINI + CHAT
 # ============================================================
 
-def call_gemini(messages, tools=None):
+def call_gemini(messages, tools=None, model=None):
+    """Call Gemini API with automatic model fallback on errors"""
+    
+    # If no model specified, get next model
+    if model is None:
+        model = next_gemini_model()
+    
+    # Check if model is on cooldown
+    if model in _gemini_model_cooldown:
+        cooldown_until = _gemini_model_cooldown[model]
+        if datetime.now() < cooldown_until:
+            print(f"⏳ Model {model} on cooldown, trying next model...")
+            next_model = next_gemini_model()
+            if next_model != model:
+                return call_gemini(messages, tools, next_model)
+            return None, f"All models on cooldown"
+    
+    # Get API key
     key = next_gemini_key()
     if not key:
         return None, "No Gemini API keys"
     
-    print(f"🔑 Using Gemini key: {key[:12]}...")
+    print(f"🔑 Using Gemini key: {key[:12]}... with model: {model}")
     
     headers = {
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json"
     }
     payload = {
-        "model": GEMINI_MODEL,
+        "model": model,
         "messages": messages,
     }
     if tools:
@@ -1968,31 +2017,51 @@ def call_gemini(messages, tools=None):
     
     try:
         r = requests.post(
-            f"{GEMINI_BASE_URL}/chat/completions",
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
             headers=headers,
             json=payload,
             timeout=60
         )
-        print(f"📥 Gemini response status: {r.status_code}")
+        print(f"📥 Gemini response status: {r.status_code} (model: {model})")
         
-        # Handle rate limit
+        # Handle rate limit - try next model
         if r.status_code == 429:
-            print(f"⚠️ Rate limit hit for key {key[:12]}...")
-            handle_rate_limit(key)
-            # Try with next key
-            next_key = next_gemini_key()
-            if next_key and next_key != key:
-                print(f"🔄 Retrying with next key: {next_key[:12]}...")
-                return call_gemini(messages, tools)
-            return None, "Rate limit exceeded - all keys exhausted"
+            print(f"⚠️ Rate limit hit for model {model}")
+            handle_model_rate_limit(model)
+            
+            # Try next model
+            next_model = next_gemini_model()
+            if next_model != model:
+                print(f"🔄 Switching to next model: {next_model}")
+                return call_gemini(messages, tools, next_model)
+            return None, f"Rate limit exceeded - all models exhausted"
         
+        # Handle other errors - try next model
         if r.status_code != 200:
-            print(f"❌ Gemini error: {r.text[:300]}")
-            return None, f"Gemini {r.status_code}: {r.text[:300]}"
+            print(f"❌ Gemini error with model {model}: {r.text[:200]}")
+            
+            # Try next model for non-200 errors (except 400 which is usually bad request)
+            if r.status_code != 400:
+                next_model = next_gemini_model()
+                if next_model != model:
+                    print(f"🔄 Switching to next model: {next_model}")
+                    return call_gemini(messages, tools, next_model)
+            
+            return None, f"Gemini {r.status_code} with {model}: {r.text[:300]}"
+        
+        # Success! Reset model cooldown
+        if model in _gemini_model_cooldown:
+            del _gemini_model_cooldown[model]
         
         return r.json(), None
+        
     except Exception as e:
-        print(f"❌ Gemini exception: {e}")
+        print(f"❌ Gemini exception with {model}: {e}")
+        # Try next model on exception
+        next_model = next_gemini_model()
+        if next_model != model:
+            print(f"🔄 Switching to next model on exception: {next_model}")
+            return call_gemini(messages, tools, next_model)
         return None, str(e)
 
 TOOLS_SCHEMA = [
@@ -2688,95 +2757,80 @@ def api_chat():
 
     print(f"📤 Calling Gemini with {len(messages)} messages")
     
-    # ===== RETRY LOGIC =====
-    max_retries = 3
-    retry_delay = 2
+    # Try with model fallback - only retry once per model
+    data_g, err = call_gemini(messages, tools=TOOLS_SCHEMA)
     tool_results = []
-    
-    for attempt in range(max_retries):
-        print(f"🔄 Attempt {attempt + 1}/{max_retries}")
-        data_g, err = call_gemini(messages, tools=TOOLS_SCHEMA)
-        
-        if err or not data_g:
-            print(f"❌ Gemini attempt {attempt + 1} failed: {err}")
-            if attempt < max_retries - 1:
-                print(f"⏳ Waiting {retry_delay}s before retry...")
-                time.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
-            continue
-        
-        print("✅ Gemini response received")
-        
-        try:
-            choice = data_g['choices'][0]['message']
-            tool_calls = choice.get('tool_calls') or []
 
-            if tool_calls:
-                print(f"🔧 Tool calls: {[tc.get('function', {}).get('name') for tc in tool_calls]}")
-                messages.append(choice)
-                for tc in tool_calls:
-                    fn = tc.get('function') or {}
-                    name = fn.get('name')
-                    try:
-                        args = json.loads(fn.get('arguments') or '{}')
-                        print(f"   📌 {name}({args})")
-                    except Exception:
-                        args = {}
-                    result = execute_tool(name, args, session_id=session_id)
-                    if result.get('session_id'):
-                        session_id = result['session_id']
-                    if name == 'fetch_posts' and result.get('success') and session_id in sessions:
-                        sessions[session_id]['_last_fetched'] = result.get('posts') or []
-                        sessions[session_id]['_last_actor'] = result.get('actor')
-                    tool_results.append({"name": name, "result": result})
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.get('id'),
-                        "content": json.dumps(result)
-                    })
+    if err or not data_g:
+        print(f"❌ All Gemini models failed: {err}")
+        reply = simple_fallback(message, session_id)
+        return jsonify({
+            "success": True,
+            "reply": reply,
+            "tool_results": [],
+            "chat_key": chat_key,
+            "session_id": session_id
+        })
 
-                final_data, final_err = call_gemini(messages)
-                if final_err or not final_data:
-                    print(f"❌ Final Gemini failed: {final_err}")
-                    reply = format_tool_summary(tool_results)
-                else:
-                    reply = final_data['choices'][0]['message'].get('content') or format_tool_summary(tool_results)
-                    print(f"📤 Gemini final reply: {reply[:50]}...")
+    try:
+        choice = data_g['choices'][0]['message']
+        tool_calls = choice.get('tool_calls') or []
+
+        if tool_calls:
+            print(f"🔧 Tool calls: {[tc.get('function', {}).get('name') for tc in tool_calls]}")
+            messages.append(choice)
+            for tc in tool_calls:
+                fn = tc.get('function') or {}
+                name = fn.get('name')
+                try:
+                    args = json.loads(fn.get('arguments') or '{}')
+                    print(f"   📌 {name}({args})")
+                except Exception:
+                    args = {}
+                result = execute_tool(name, args, session_id=session_id)
+                if result.get('session_id'):
+                    session_id = result['session_id']
+                if name == 'fetch_posts' and result.get('success') and session_id in sessions:
+                    sessions[session_id]['_last_fetched'] = result.get('posts') or []
+                    sessions[session_id]['_last_actor'] = result.get('actor')
+                tool_results.append({"name": name, "result": result})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get('id'),
+                    "content": json.dumps(result)
+                })
+
+            # Final call with tool results - try model fallback
+            final_data, final_err = call_gemini(messages)
+            if final_err or not final_data:
+                print(f"❌ Final Gemini failed: {final_err}")
+                reply = format_tool_summary(tool_results)
             else:
-                reply = choice.get('content') or simple_fallback(message, session_id)
-                print(f"📤 Gemini direct reply: {reply[:50]}...")
+                reply = final_data['choices'][0]['message'].get('content') or format_tool_summary(tool_results)
+                print(f"📤 Gemini final reply: {reply[:50]}...")
+        else:
+            reply = choice.get('content') or simple_fallback(message, session_id)
+            print(f"📤 Gemini direct reply: {reply[:50]}...")
 
-            print(f"{'='*50}\n")
-            return jsonify({
-                "success": True,
-                "reply": reply,
-                "tool_results": tool_results,
-                "chat_key": chat_key,
-                "session_id": session_id
-            })
-            
-        except Exception as e:
-            print(f"❌ Error processing Gemini response: {e}")
-            if attempt < max_retries - 1:
-                print(f"⏳ Retrying...")
-                time.sleep(retry_delay)
-                retry_delay *= 2
-                continue
-            else:
-                # All retries failed, fall through to fallback
-                break
-
-    # ===== FALLBACK =====
-    print("⚠️ All Gemini attempts failed, using fallback")
-    reply = simple_fallback(message, session_id)
-    return jsonify({
-        "success": True,
-        "reply": reply,
-        "tool_results": tool_results,
-        "chat_key": chat_key,
-        "session_id": session_id
-    })
-
+        print(f"{'='*50}\n")
+        return jsonify({
+            "success": True,
+            "reply": reply,
+            "tool_results": tool_results,
+            "chat_key": chat_key,
+            "session_id": session_id
+        })
+        
+    except Exception as e:
+        print(f"❌ Error processing Gemini response: {e}")
+        reply = simple_fallback(message, session_id)
+        return jsonify({
+            "success": True,
+            "reply": reply,
+            "tool_results": tool_results,
+            "chat_key": chat_key,
+            "session_id": session_id
+        })
 
 
 

@@ -1157,7 +1157,226 @@ def tool_list_vault(limit=20, offset=0):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+def tool_list_vault_by_status(status=None, limit=50, offset=0):
+    """List vault items filtered by post status."""
+    conn = get_db_connection()
+    if not conn:
+        return {"success": False, "error": "DB unavailable"}
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        if status == 'unposted':
+            cur.execute("""
+                SELECT v.id, v.uri, v.author, v.display_name, v.text, v.images, v.video, 
+                       v.likes, v.reposts, v.replies, v.created_at, v.saved_at, 
+                       v.handler_handle, v.notes,
+                       NULL as post_status, NULL as posted_at, NULL as platform_post_id
+                FROM vault v
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM posted_posts p 
+                    WHERE p.uri = v.uri AND p.status IN ('completed', 'posted') AND p.platform = 'bluesky'
+                )
+                ORDER BY v.saved_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        elif status in ('posted', 'completed'):
+            cur.execute("""
+                SELECT v.id, v.uri, v.author, v.display_name, v.text, v.images, v.video, 
+                       v.likes, v.reposts, v.replies, v.created_at, v.saved_at, 
+                       v.handler_handle, v.notes,
+                       p.status as post_status, p.posted_at, p.platform_post_id
+                FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status IN ('completed', 'posted')
+                ORDER BY p.posted_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        elif status == 'scheduled':
+            cur.execute("""
+                SELECT v.id, v.uri, v.author, v.display_name, v.text, v.images, v.video, 
+                       v.likes, v.reposts, v.replies, v.created_at, v.saved_at, 
+                       v.handler_handle, v.notes,
+                       p.status as post_status, p.posted_at, p.platform_post_id
+                FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status = 'scheduled'
+                ORDER BY p.posted_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        else:
+            cur.execute("""
+                SELECT v.id, v.uri, v.author, v.display_name, v.text, v.images, v.video, 
+                       v.likes, v.reposts, v.replies, v.created_at, v.saved_at, 
+                       v.handler_handle, v.notes,
+                       COALESCE(p.status, 'unposted') as post_status, 
+                       p.posted_at, p.platform_post_id
+                FROM vault v
+                LEFT JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                ORDER BY v.saved_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+        
+        rows = cur.fetchall()
+        
+        # Get total count for the filtered query
+        if status == 'unposted':
+            cur.execute("""
+                SELECT COUNT(*) FROM vault v
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM posted_posts p 
+                    WHERE p.uri = v.uri AND p.status IN ('completed', 'posted') AND p.platform = 'bluesky'
+                )
+            """)
+        elif status in ('posted', 'completed'):
+            cur.execute("""
+                SELECT COUNT(*) FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status IN ('completed', 'posted')
+            """)
+        elif status == 'scheduled':
+            cur.execute("""
+                SELECT COUNT(*) FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status = 'scheduled'
+            """)
+        else:
+            cur.execute("SELECT COUNT(*) FROM vault")
+        
+        total = cur.fetchone()['count']
+        cur.close()
+        conn.close()
+        
+        vault = []
+        for r in rows:
+            vault.append({
+                "id": r['id'],
+                "uri": r['uri'],
+                "author": r['author'],
+                "display_name": r['display_name'],
+                "text": r['text'],
+                "images": r['images'] or [],
+                "video": r['video'],
+                "likes": r['likes'],
+                "reposts": r['reposts'],
+                "replies": r['replies'],
+                "created_at": r['created_at'].isoformat() if r['created_at'] else None,
+                "saved_at": r['saved_at'].isoformat() if r['saved_at'] else None,
+                "handler_handle": r['handler_handle'],
+                "notes": r['notes'],
+                "post_status": r.get('post_status') or 'unposted',
+                "posted_at": r['posted_at'].isoformat() if r.get('posted_at') else None,
+                "platform_post_id": r.get('platform_post_id'),
+            })
+        return {"success": True, "vault": vault, "count": total, "status_filter": status or 'all'}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
+
+def tool_delete_vault_items(ids=None, status=None, all=False):
+    """Delete vault items by ID, by status, or all."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return {"success": False, "error": "Database unavailable"}
+        
+        cur = conn.cursor()
+        deleted_count = 0
+        deleted_uris = []
+        
+        if ids and isinstance(ids, list):
+            placeholders = ','.join(['%s'] * len(ids))
+            cur.execute(f"SELECT id, uri FROM vault WHERE id IN ({placeholders})", ids)
+            items = cur.fetchall()
+        elif status == 'unposted':
+            cur.execute("""
+                SELECT id, uri FROM vault v
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM posted_posts p 
+                    WHERE p.uri = v.uri AND p.status IN ('completed', 'posted') AND p.platform = 'bluesky'
+                )
+            """)
+            items = cur.fetchall()
+        elif status in ('posted', 'completed'):
+            cur.execute("""
+                SELECT v.id, v.uri FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status IN ('completed', 'posted')
+            """)
+            items = cur.fetchall()
+        elif status == 'scheduled':
+            cur.execute("""
+                SELECT v.id, v.uri FROM vault v
+                INNER JOIN posted_posts p ON p.uri = v.uri AND p.platform = 'bluesky'
+                WHERE p.status = 'scheduled'
+            """)
+            items = cur.fetchall()
+        elif all:
+            cur.execute("SELECT id, uri FROM vault")
+            items = cur.fetchall()
+        else:
+            return {"success": False, "error": "Specify ids, status, or all=True"}
+        
+        if not items:
+            cur.close()
+            conn.close()
+            return {"success": True, "deleted_count": 0, "message": "No items to delete"}
+        
+        for item in items:
+            item_id, uri = item
+            cur.execute("DELETE FROM posted_posts WHERE uri = %s AND platform = 'bluesky'", (uri,))
+            cur.execute("DELETE FROM vault WHERE id = %s", (item_id,))
+            deleted_count += 1
+            deleted_uris.append(uri)
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "deleted_uris": deleted_uris,
+            "message": f"🗑️ Permanently deleted {deleted_count} item(s) from vault"
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def tool_post_unposted(session_id=None, target_handle=None, limit=10):
+    """Post all unposted vault items to Bluesky."""
+    result = tool_list_vault_by_status(status='unposted', limit=limit)
+    if not result.get('success'):
+        return result
+    
+    items = result.get('vault', [])
+    if not items:
+        return {"success": True, "posted_count": 0, "message": "No unposted items to post"}
+    
+    posted = 0
+    errors = []
+    results = []
+    
+    for item in items:
+        res = tool_post_now(
+            session_id=session_id,
+            vault_id=item.get('id'),
+            target_handle=target_handle
+        )
+        results.append(res)
+        if res.get('success'):
+            posted += 1
+        else:
+            errors.append(res.get('error', 'Unknown error'))
+        time.sleep(1.5)
+    
+    return {
+        "success": posted > 0,
+        "posted_count": posted,
+        "total": len(items),
+        "results": results,
+        "errors": errors,
+        "message": f"Posted {posted}/{len(items)} unposted items to Bluesky"
+    }
 def _get_vault_item(vault_id=None, uri=None):
     conn = get_db_connection()
     if not conn:
@@ -2081,8 +2300,8 @@ TOOLS_SCHEMA = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "username": {"type": "string"},
-                    "password": {"type": "string"}
+                    "username": {"type": "string", "description": "Bluesky handle or email"},
+                    "password": {"type": "string", "description": "App password"}
                 },
                 "required": ["username", "password"]
             }
@@ -2092,12 +2311,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "logout",
-            "description": "Logout from a Bluesky session",
+            "description": "Logout from a Bluesky session. Use 'all': true to logout all sessions.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "handle": {"type": "string"},
-                    "all": {"type": "boolean"}
+                    "handle": {"type": "string", "description": "Handle to logout"},
+                    "all": {"type": "boolean", "description": "Logout all sessions"}
                 }
             }
         }
@@ -2106,7 +2325,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "list_sessions",
-            "description": "List all active Bluesky sessions",
+            "description": "List all active Bluesky sessions.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2114,11 +2333,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "set_master",
-            "description": "Set the master Bluesky account used for fetching posts",
+            "description": "Set the master Bluesky account used for fetching posts.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "handle": {"type": "string"}
+                    "handle": {"type": "string", "description": "Bluesky handle to set as master"}
                 },
                 "required": ["handle"]
             }
@@ -2128,7 +2347,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_master",
-            "description": "Get the current master Bluesky account",
+            "description": "Get the current master Bluesky account.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2136,14 +2355,14 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "fetch_posts",
-            "description": "Fetch posts from a Bluesky handle using the master account",
+            "description": "Fetch posts from a Bluesky handle using the master account.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "actor": {"type": "string"},
-                    "limit": {"type": "integer"},
-                    "media_only": {"type": "boolean"},
-                    "include_reposts": {"type": "boolean"}
+                    "actor": {"type": "string", "description": "Handle to fetch from"},
+                    "limit": {"type": "integer", "default": 15},
+                    "media_only": {"type": "boolean", "default": True},
+                    "include_reposts": {"type": "boolean", "default": False}
                 },
                 "required": ["actor"]
             }
@@ -2153,7 +2372,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "add_to_vault",
-            "description": "Save recently fetched posts to the vault",
+            "description": "Save recently fetched posts to the vault.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2161,12 +2380,32 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "list_vault",
-            "description": "List items in the vault",
+            "description": "List items in the vault.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer"},
-                    "offset": {"type": "integer"}
+                    "limit": {"type": "integer", "default": 20},
+                    "offset": {"type": "integer", "default": 0}
+                }
+            }
+        }
+    },
+    # ===== VAULT MANAGEMENT TOOLS =====
+    {
+        "type": "function",
+        "function": {
+            "name": "list_vault_by_status",
+            "description": "List vault items filtered by post status. Use 'unposted' for items not yet posted, 'posted' for already posted, 'scheduled' for scheduled, or 'all' for everything.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["unposted", "posted", "scheduled", "all"],
+                        "description": "Filter by post status"
+                    },
+                    "limit": {"type": "integer", "default": 50},
+                    "offset": {"type": "integer", "default": 0}
                 }
             }
         }
@@ -2174,15 +2413,65 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
-            "name": "post_to_accounts",
-            "description": "Post a vault item to multiple Bluesky accounts by handle",
+            "name": "delete_vault_items",
+            "description": "PERMANENTLY delete vault items by status or all. Use with caution! This cannot be undone. ALWAYS confirm with the user before deleting.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "vault_id": {"type": "integer"},
-                    "uri": {"type": "string"},
-                    "caption": {"type": "string"},
-                    "account_handles": {"type": "array", "items": {"type": "string"}}
+                    "status": {
+                        "type": "string",
+                        "enum": ["unposted", "posted", "scheduled", "all"],
+                        "description": "Delete items by status"
+                    },
+                    "ids": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "description": "List of vault IDs to delete"
+                    },
+                    "all": {
+                        "type": "boolean",
+                        "description": "Delete ALL vault items (requires confirmation)"
+                    }
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "post_unposted",
+            "description": "Post all unposted vault items to Bluesky immediately.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "session_id": {"type": "string", "description": "Session ID to post with"},
+                    "target_handle": {"type": "string", "description": "Target handle to post to (optional)"},
+                    "limit": {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Max number of items to post"
+                    }
+                }
+            }
+        }
+    },
+    # ===== END VAULT MANAGEMENT TOOLS =====
+    {
+        "type": "function",
+        "function": {
+            "name": "post_to_accounts",
+            "description": "Post a vault item to multiple Bluesky accounts by handle.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vault_id": {"type": "integer", "description": "Vault item ID to post"},
+                    "uri": {"type": "string", "description": "Vault item URI (alternative to vault_id)"},
+                    "caption": {"type": "string", "description": "Custom caption (optional)"},
+                    "account_handles": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of Bluesky handles to post to"
+                    }
                 },
                 "required": ["account_handles"]
             }
@@ -2192,13 +2481,29 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "broadcast",
-            "description": "Post a vault item to ALL connected Bluesky accounts",
+            "description": "Post a vault item to ALL connected Bluesky accounts.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "vault_id": {"type": "integer"},
-                    "uri": {"type": "string"},
-                    "caption": {"type": "string"}
+                    "vault_id": {"type": "integer", "description": "Vault item ID to post"},
+                    "uri": {"type": "string", "description": "Vault item URI (alternative to vault_id)"},
+                    "caption": {"type": "string", "description": "Custom caption (optional)"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "post_now",
+            "description": "Post a vault item to Bluesky using the current session.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "vault_id": {"type": "integer", "description": "Vault item ID to post"},
+                    "uri": {"type": "string", "description": "Vault item URI (alternative to vault_id)"},
+                    "caption": {"type": "string", "description": "Custom caption (optional)"},
+                    "target_handle": {"type": "string", "description": "Target handle (optional)"}
                 }
             }
         }
@@ -2207,7 +2512,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "list_accounts",
-            "description": "List all active Bluesky accounts",
+            "description": "List all active Bluesky accounts.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2215,7 +2520,15 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_status",
-            "description": "Get overall system status",
+            "description": "Get overall system status including vault counts and sessions.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_scheduled",
+            "description": "List pending scheduled posts.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2223,17 +2536,17 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_setup",
-            "description": "Configure auto-pilot pipeline",
+            "description": "Configure auto-pilot pipeline. Watch a source handle and cross-post to target.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
-                    "source_handle": {"type": "string"},
-                    "target_handle": {"type": "string"},
-                    "poll_interval_sec": {"type": "integer"},
-                    "max_posts_per_run": {"type": "integer"},
-                    "media_only": {"type": "boolean"},
-                    "include_reposts": {"type": "boolean"}
+                    "name": {"type": "string", "description": "Pipeline name (unique)"},
+                    "source_handle": {"type": "string", "description": "Bluesky handle to watch"},
+                    "target_handle": {"type": "string", "description": "Bluesky handle to post to"},
+                    "poll_interval_sec": {"type": "integer", "default": 300},
+                    "max_posts_per_run": {"type": "integer", "default": 2},
+                    "media_only": {"type": "boolean", "default": True},
+                    "include_reposts": {"type": "boolean", "default": False}
                 },
                 "required": ["source_handle"]
             }
@@ -2243,7 +2556,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_start",
-            "description": "Start the auto-pilot",
+            "description": "Start the auto-pilot.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2251,7 +2564,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_stop",
-            "description": "Stop the auto-pilot",
+            "description": "Stop the auto-pilot.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2259,7 +2572,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_status",
-            "description": "Get auto-pilot status",
+            "description": "Get auto-pilot status and list all pipelines.",
             "parameters": {"type": "object", "properties": {}}
         }
     },
@@ -2267,11 +2580,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_run_now",
-            "description": "Run one auto-pilot cycle immediately",
+            "description": "Run one auto-pilot cycle immediately.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"}
+                    "name": {"type": "string", "description": "Pipeline name to run"}
                 }
             }
         }
@@ -2280,11 +2593,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "auto_remove",
-            "description": "Remove an auto-pilot pipeline",
+            "description": "PERMANENTLY DELETE an auto-pilot pipeline.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"}
+                    "name": {"type": "string", "description": "Pipeline name to delete"}
                 },
                 "required": ["name"]
             }
@@ -2294,11 +2607,11 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "help",
-            "description": "Get help on available commands",
+            "description": "Get help on available commands.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "topic": {"type": "string"}
+                    "topic": {"type": "string", "description": "Optional topic to get help on"}
                 }
             }
         }
@@ -2383,6 +2696,40 @@ def execute_tool(name, args, session_id=None):
                 offset=int(args.get('offset') or 0)
             )
         
+        # ===== NEW VAULT MANAGEMENT TOOLS =====
+        if name == 'list_vault_by_status':
+            return tool_list_vault_by_status(
+                status=args.get('status', 'all'),
+                limit=int(args.get('limit', 50)),
+                offset=int(args.get('offset', 0))
+            )
+        
+        if name == 'delete_vault_items':
+            # Require confirmation for "delete all"
+            if args.get('all'):
+                confirm = args.get('confirm')
+                if confirm != 'YES_DELETE_ALL':
+                    return {
+                        "success": False, 
+                        "error": "Confirmation required",
+                        "message": "⚠️ This will permanently delete ALL vault items. Reply with 'YES_DELETE_ALL' to confirm.",
+                        "requires_confirmation": True,
+                        "confirmation_code": "YES_DELETE_ALL"
+                    }
+            return tool_delete_vault_items(
+                ids=args.get('ids'),
+                status=args.get('status'),
+                all=args.get('all', False)
+            )
+        
+        if name == 'post_unposted':
+            return tool_post_unposted(
+                session_id=session_id or args.get('session_id'),
+                target_handle=args.get('target_handle'),
+                limit=int(args.get('limit', 10))
+            )
+        # ===== END NEW VAULT MANAGEMENT TOOLS =====
+        
         if name == 'post_to_accounts':
             posting_handles = args.get('account_handles', [])
             if not posting_handles:
@@ -2407,6 +2754,15 @@ def execute_tool(name, args, session_id=None):
                 session_ids=all_sessions
             )
         
+        if name == 'post_now':
+            return tool_post_now(
+                session_id=session_id,
+                vault_id=args.get('vault_id'),
+                uri=args.get('uri'),
+                caption=args.get('caption'),
+                target_handle=args.get('target_handle')
+            )
+        
         if name == 'list_accounts':
             return tool_list_accounts('bluesky')
         
@@ -2423,7 +2779,9 @@ def execute_tool(name, args, session_id=None):
                 target_handle=args.get('target_handle'),
                 poll_interval_sec=args.get('poll_interval_sec') or 300,
                 max_posts_per_run=args.get('max_posts_per_run') or 2,
-                media_only=bool(args.get('media_only', True))
+                media_only=bool(args.get('media_only', True)),
+                bluesky_handle=args.get('bluesky_handle'),
+                bluesky_app_password=args.get('bluesky_app_password')
             )
         
         if name == 'auto_start':
@@ -2445,7 +2803,45 @@ def execute_tool(name, args, session_id=None):
             return tool_auto_remove(name)
         
         if name == 'help':
-            return {"success": True, "message": "Available commands: login, logout, list_sessions, set_master, get_master, fetch_posts, add_to_vault, list_vault, post_to_accounts, broadcast, list_accounts, get_status, auto_setup, auto_start, auto_stop, auto_status, auto_run_now, auto_remove"}
+            return {"success": True, "message": """Available commands:
+            
+🔐 AUTHENTICATION:
+  login - Login to Bluesky
+  logout - Logout from a session
+  list_sessions - List all active sessions
+
+👑 MASTER ACCOUNT:
+  set_master - Set the master account for fetching
+  get_master - Get the current master account
+
+📥 FETCHING:
+  fetch_posts - Fetch posts from a Bluesky handle
+  add_to_vault - Save fetched posts to vault
+
+📦 VAULT MANAGEMENT:
+  list_vault - List items in the vault
+  list_vault_by_status - List vault items by status (unposted/posted/scheduled/all)
+  delete_vault_items - Permanently delete vault items
+  post_unposted - Post all unposted vault items
+
+📤 POSTING:
+  post_now - Post a vault item
+  post_to_accounts - Post to multiple accounts
+  broadcast - Post to ALL accounts
+
+🤖 AUTO PILOT:
+  auto_setup - Configure auto-pilot pipeline
+  auto_start - Start auto-pilot
+  auto_stop - Stop auto-pilot
+  auto_status - Get auto-pilot status
+  auto_run_now - Run auto-pilot once
+  auto_remove - Remove a pipeline
+
+📊 STATUS:
+  list_accounts - List all accounts
+  get_status - Get system status
+  list_scheduled - List scheduled posts
+  help - Show this help message"""}
         
         return {"success": False, "error": f"Unknown tool {name}"}
     except Exception as e:
@@ -2453,23 +2849,230 @@ def execute_tool(name, args, session_id=None):
         return {"success": False, "error": str(e)}
 
 
-SYSTEM_PROMPT = """You are the AI for Bluesky AI Vault → Bluesky.
+SYSTEM_PROMPT = """You are the AI assistant for Bluesky AI Vault → Bluesky - a social media automation tool.
 
-RULES:
-- Source platform: Bluesky (login, fetch posts).
-- Destination platform: Bluesky (post, auto-pilot via AT Protocol).
-- Only talk about Bluesky. You are a Bluesky-only bot.
+===========================================
+CORE FUNCTIONALITY:
+===========================================
+- Source: Bluesky (fetch posts)
+- Destination: Bluesky ONLY (via AT Protocol)
+- Facebook, Instagram, Threads, TikTok are NOT supported
+- Timezone: Africa/Nairobi
 
-You help the user:
-- Login to Bluesky
-- Fetch posts from Bluesky handles
-- Save them to a vault
-- Post vault items to Bluesky
-- Auto-pilot: watch a Bluesky account and cross-post new media to another Bluesky account
+===========================================
+LOCAL MEMORY FEATURES - I CAN REMEMBER:
+===========================================
+I have a local memory system that learns about you to provide a personalized experience:
 
-Be concise. Timezone for schedules is Africa/Nairobi (GMT+3).
+1. **Preferred Account**: I remember which Bluesky account you prefer to post to
+2. **Posting Patterns**: I learn from your posting history (frequency, content types)
+3. **Common Topics**: I track what you're interested in
+4. **Conversation History**: I remember recent conversations for context
+5. **Last Used Account**: I remember which account you used most recently
+
+You can ask me:
+- "What do you know about me?" - See what I remember
+- "Forget everything" - Clear my memory
+- "Remember @handle" - Set a preferred account
+- "What's my preferred account?" - Check your current preference
+
+I will automatically use your preferred account when posting, so you don't have to specify it every time!
+
+===========================================
+MULTIPLE ACCOUNTS FLOW WITH MEMORY:
+===========================================
+When the user wants to POST something:
+
+STEP 1: Check if the user specified an account:
+- "post id 5 to @account1" → use account_handle="account1"
+- "post id 5 to @account1, @account2" → use multiple accounts
+
+STEP 2: If NO account was specified:
+- Check if user has a PREFERRED ACCOUNT saved in memory
+- If YES → "Using your preferred account: @[account]" (do NOT ask!)
+- If NO → Call list_accounts() to see how many exist
+  - If ONLY 1 account → use it automatically, mention: "Posting to @[account_name]"
+  - If MULTIPLE accounts → ASK: "You have [N] Bluesky accounts: [list]. Which one?"
+
+STEP 3: After user chooses, REMEMBER the choice for next time
+
+STEP 4: Wait for the user's response before posting.
+
+===========================================
+VAULT MANAGEMENT COMMANDS:
+===========================================
+- "list unposted" or "show unposted" → list_vault_by_status(status="unposted")
+- "list posted" or "show posted" → list_vault_by_status(status="posted")
+- "list scheduled" or "show scheduled" → list_vault_by_status(status="scheduled")
+- "list all vault" or "show all vault" → list_vault_by_status(status="all")
+- "post unposted" → post_unposted() (uses preferred account if set)
+- "post count 5" → post_unposted(limit=5)
+- "delete unposted" → delete_vault_items(status="unposted") (needs confirmation)
+- "delete posted" → delete_vault_items(status="posted") (needs confirmation)
+- "delete scheduled" → delete_vault_items(status="scheduled") (needs confirmation)
+- "delete all vault" → delete_vault_items(all=True) (⚠️ Requires: YES_DELETE_ALL)
+- "delete vault id 1,2,3" → delete_vault_items(ids=[1,2,3])
+- "post id 5" → post_now(vault_id=5) (uses preferred account if set)
+- "post id 5 to @account1, @account2" → post_to_accounts(vault_id=5, account_handles=["account1", "account2"])
+- "broadcast id 5" → broadcast(vault_id=5) (posts to ALL accounts)
+- "post 3 from vault" → post_vault_batch(count=3) (uses preferred account if set)
+
+When showing vault items, include status icons:
+   ✅ = posted, ⏳ = scheduled, ⬜ = unposted
+
+For posting, always mention which account(s) were used.
+
+===========================================
+CRITICAL - HANDLING TOOL RESPONSES:
+===========================================
+When a tool returns a response, you MUST check for these special flags:
+
+1. **"needs_account": True** - User has multiple Bluesky accounts
+   → Check if user has a preferred account saved
+   → If YES: "Using your preferred account: @[account]" and post
+   → If NO: "You have [N] accounts: [names]. Which one?"
+   → After user chooses, REMEMBER it!
+
+2. **"requires_confirmation": True** - Action needs user confirmation
+   → You MUST re-prompt the user with the confirmation question
+   → Example: "Reply with YES_DELETE_ALL to confirm"
+
+3. **"confirmation_code": "YES_DELETE_ALL"** - User must reply with exact code
+   → Tell the user: "Reply with YES_DELETE_ALL to confirm"
+
+===========================================
+MASTER ACCOUNT MANAGEMENT:
+===========================================
+The master account is used for fetching posts from Bluesky.
+
+- "set master @handle" → Set the master account for fetching
+- "who is master" → Show the current master account
+- "list sessions" → Show all active sessions
+- "logout @handle" → Logout a specific session
+- "logout all" → Logout ALL sessions
+
+===========================================
+SESSION MANAGEMENT:
+===========================================
+- Sessions are automatically saved to the database
+- They persist across server restarts
+- You can have multiple accounts logged in simultaneously
+- Each session is identified by a unique session_id
+
+===========================================
+REPLY STYLE (CRITICAL):
+===========================================
+- NEVER paste raw JSON, tool dumps, or {"success":...} into your reply
+- ALWAYS summarize tool results in short plain English
+- For list_accounts: say the usernames only, not the full JSON
+- For confirmation: clearly tell the user what to reply
+- For multiple accounts: list them clearly and ask which one
+- For memory: confirm when you remember something (e.g., "✅ I'll remember @handle for future posts")
+- Be friendly, concise, and helpful
+- Use emojis sparingly to make responses more readable
+
+===========================================
+EXAMPLE CONVERSATIONS WITH MEMORY:
+===========================================
+User: "post id 5"
+(First time - no preferred account, 2 accounts exist)
+You: "You have 2 Bluesky accounts: @account1 and @account2. Which one do you want to post to?"
+
+User: "account1"
+You: "✅ Done — posted to Bluesky (@account1). 
+I'll remember @account1 as your preferred account for future posts."
+
+User: "post id 6"
+(Now has preferred account)
+You: "✅ Done — posted to Bluesky (@account1) using your preferred account."
+
+User: "what do you know about me?"
+You: "📌 Context about you:
+• User's preferred account: @account1
+• User has posted 3 times this session
+• Last action: post"
+
+User: "forget everything"
+You: "🧹 I've cleared all memories about you. I'll start fresh!"
+
+User: "remember @account2"
+You: "✅ I'll remember @account2 as your preferred account for future posts."
+
+===========================================
+AUTONOMY (pipelines):
+===========================================
+- Each Bluesky source is its own pipeline with a unique name
+- auto_status lists ALL pipelines
+- auto_remove(name="scorpio") permanently deletes that pipeline
+- "Stop auto" / "stop pipeline X" → auto_stop (disables, keeps config)
+- "Remove pipeline X" / "delete pipeline scorpio" → auto_remove (deletes forever)
+
+===========================================
+ADDING A NEW PIPELINE:
+===========================================
+- If user says "add a pipeline" WITHOUT full details → Ask clarifying questions
+- Minimum required: source_handle (Bluesky handle to watch)
+- Optional: target_handle (Bluesky handle to post to, defaults to source)
+- Defaults: poll_interval_sec=300, max_posts_per_run=1, media_only=true
+- As soon as source_handle is known, call auto_setup once
+
+===========================================
+SCHEDULING:
+===========================================
+- schedule_bulk(count=N, period="week")
+- Prefer count to take the latest N posts
+- Always ask which account when multiple accounts exist (unless preferred account is set)
+
+===========================================
+OTHER COMMANDS:
+===========================================
+- "status" → get_status
+- "list accounts" → list_accounts()
+- "list sessions" → list_sessions()
+- "login with handle and app-password" → login()
+- "fetch 10 posts from @handle" → fetch_posts()
+- "save them to vault" → add_to_vault()
+- "list scheduled" → list_scheduled()
+- "help" → Show available commands
+
+===========================================
+MEMORY MANAGEMENT COMMANDS:
+===========================================
+- "what do you know about me" → Shows all saved preferences
+- "forget everything" → Clears all memory
+- "remember @handle" → Sets preferred account
+- "what's my preferred account" → Shows current preference
+
+===========================================
+REMEMBER:
+===========================================
+- Timezone is Africa/Nairobi
+- Only Bluesky posting is supported
+- Always check for preferred account before asking which account
+- Always confirm destructive actions
+- Be concise and helpful
+- Learn from interactions - remember user preferences
+- NEVER invent success - report tool results honestly
+- NEVER paste raw JSON in your reply
+
+===========================================
+YOUR PERSONALITY:
+===========================================
+- You are helpful, friendly, and efficient
+- You remember user preferences to make interactions smoother
+- You proactively suggest actions based on context
+- You explain what you're doing in simple terms
+- You confirm important actions before executing them
+- You learn from every interaction to improve future responses
+
+===========================================
+POSTING LIMITATIONS:
+===========================================
+- Bluesky posts have a maximum of 300 characters
+- Images are supported (up to 4 per post)
+- Video is not supported yet
+- You can post to multiple accounts at once using post_to_accounts or broadcast
 """
-
 
 def format_tool_summary(tool_results):
     parts = []

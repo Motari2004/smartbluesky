@@ -254,13 +254,8 @@ def refresh_sessions_from_db():
 
 
 
-def next_gemini_key():
-    global _gemini_key_index
-    if not GEMINI_API_KEYS:
-        return None
-    key = GEMINI_API_KEYS[_gemini_key_index % len(GEMINI_API_KEYS)]
-    _gemini_key_index += 1
-    return key
+
+
 
 
 def get_now():
@@ -1973,6 +1968,16 @@ def tool_auto_remove(name):
         return {"success": True, "message": f"Removed pipeline {name}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+
+
+
+
+
+
+
+
 
 
 # ============================================================
